@@ -1,0 +1,30 @@
+baseURL = '/'
+languageCode = 'en-us'
+title = 'My New Hugo Site'
+theme = 'xmin'
+
+[permalinks]
+note = "/note/:year/:month/:day/slug"
+post = "/post/:year/:month/:day/slug"
+
+[[menu.main]]
+name   = "Home"
+url    = ""
+weight = 1
+
+[[menu.main]]
+name   = "Tags"
+url    = "tags/"
+weight = 2
+
+[[menu.main]]
+name   = "RSS"
+url    = "index.xml"
+weight = 3
+
+[params]
+description = "Kelvium's personal blog"
+footer = "&copy; [Github](https://github.com/Kelvium) 2023 -- {Year}"
+
+[security.exec]
+allow = ["^asciidoctor"]
