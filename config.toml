@@ -28,3 +28,4 @@ footer = "&copy; [Github](https://github.com/Kelvium) 2023 -- {Year}"
 
 [security.exec]
 allow = ["^asciidoctor"]
+osEnv = ["(?i)^(PATH|PATHEXT|APPDATA|TMP|TEMP|TERM|GEM_PATH)$"]
