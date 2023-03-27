@@ -1,0 +1,178 @@
+---
+title: "Setting up Wireguard with Dual Stack network"
+date: 2023-03-27T19:38:05+03:00
+draft: true
+---
+
+This post assumes you're running RHEL-like distribution with `firewalld` as your firewall.
+But it can be applied to any scenario, even running Wireguard on FreeBSD.
+
+Lines starting with `+#+` should be run as root.
+
+== Installation
+
+Assuming you run a pretty recent kernel, newer than 5.6, Wireguard support is already in the kernel.
+But that might not be the case, depending on your distribution.
+If not, install package with `wireguard` module for your distribution.
+
+https://rockylinux.org[Rocky Linux 9] has it built as a module.
+
+.Enable `wireguard` module
+[,shell]
+----
+# modprobe wireguard <1>
+# echo wireguard | tee /etc/modules.load.d/wireguard.conf <2> 
+----
+<1> Run it temporarily
+<2> Enable it permanently
+
+After enabling the `wireguard` module, you'll need `wireguard-tools` package to conveniently setup Wireguard.
+Without it, you would need to manually generate Base64 keys and use `ip` to manually create the Wireguard interface.
+
+.Install `wireguard-tools` package
+[,shell]
+----
+# dnf install wireguard-tools
+----
+
+== Server configuration
+
+This post doesn't use NetworkManager, but wg-quick instead.
+
+.Enable port forwarding: `/etc/sysctl.conf`
+----
+net.ipv4.ip_forward=1
+net.ipv6.conf.all.forwarding=1
+----
+
+Note that this will disable Router Advertisements.
+
+.Create keys
+[,shell]
+----
+# mkdir /etc/wireguard
+# chmod 700 /etc/wireguard <1>
+# cd /etc/wireguard
+
+# wg genkey | tee server.pri | wg pubkey | tee server.pub <2>
+# wg genkey | tee client.pri | wg pubkey | tee client.pub <3>
+# wg genpsk | tee client.psk <4>
+
+# chmod 600 /etc/wireguard/* <5>
+----
+<1> Change permissions of `/etc/wireguard`, so only the owner can access it.
+<2> Generate server's private & public keys
+<3> Generate client's private & public keys
+<4> Generate client's preshared key
+<5> Change permissions of the generated keys, so only the owner can only read them.
+
+Note that preshared key is shared between the server and the client, as the name suggests.
+
+.Create configuration: `/etc/wireguard/wg0.conf`
+`wg0` will be the name of the Wireguard interface.
+
+[,ini]
+----
+[Interface]
+PrivateKey = CONTENTS_OF_SERVER_PRI
+Address = fd22:fb91:6598:e512::1/64
+Address = 172.16.1.1/24
+ListenPort = 51820
+
+# Use Cloudflare DNS servers, optional
+DNS = 2606:4700:4700::1111
+DNS = 2606:4700:4700::1001
+DNS = 1.1.1.1
+DNS = 1.0.0.1
+
+# Add multiple of those to have multiple clients connected with different IPs
+[Peer]
+PublicKey = CONTENTS_OF_CLIENT_PUB
+PresharedKey = CONTENTS_OF_CLIENT_PSK
+AllowedIPs = fd22:fb91:6598:e512::2/128
+AllowedIPs = 172.16.1.2/32
+----
+
+Of course, you can change the IP addresess.
+
+Now, try to start the interface with `wg-quick`:
+
+[,shell]
+----
+# wg-quick up wg0
+----
+
+Run `wg` to ensure it actually works:
+
+[,shell]
+----
+# wg
+----
+
+It should print the interface name, server's public key and the port it listens on.
+Also, it prints out peers. It does not display much until the client is actually connected.
+
+.
+
+== Client configuration
+
+You'll need to copy the `client.pri`, `client.psk` and `server.pub` files' contents from the server.
+
+Assuming your client is a Linux host too, create the `/etc/wireguard` directory with the same
+permissions as we did on the server.
+
+.Client configuration: `/etc/wireguard/wg0.conf`
+[,ini]
+----
+[Interface]
+PrivateKey = CONTENTS_OF_CLIENT_PRI
+Address = fdb0:6828:4f98:4836::2/128
+Address = 172.16.1.2/32
+
+# Use Cloudflare DNS servers, optional
+DNS = 2606:4700:4700::1111
+DNS = 2606:4700:4700::1001
+DNS = 1.1.1.1
+DNS = 1.0.0.1
+
+[Peer]
+PublicKey = CONTENTS_OF_SERVER_PUB
+PresharedKey = CONTENTS_OF_CLIENT_PSK
+AllowedIPs = ::/0 <1>
+AllowedIPs = 0.0.0.0/0 <2>
+Endpoint = SERVER_IP_OR_DOMAIN:51820
+PersistentKeepAlive = 20 <3>
+----
+<1> Forward all IPv6 traffic through the tunnel
+<2> Forward all IPv4 traffic through the tunnel
+<3> Check the connection every 20 seconds
+
+You probably want persistent keep-alive because Wireguard uses UDP as its protocol.
+And as we know, it does not keep the session, unlike TCP does.
+
+.Enable the interface with `wg-quick`:
+[,shell]
+----
+# wg-quick up wg0
+----
+
+.Check your connection:
+[,shell]
+----
+# wg
+
+# ping -c 1 fdb0:6828:4f98::1
+# ping -c 1 172.16.1.1
+----
+
+== The finish line
+
+`wireguard-tools` provides a systemd service for `wg-quick`.
+
+.Start Wireguard every time the system boots
+[,shell]
+----
+# systemctl enable --now wg-quick@wg0
+----
+
+This is applicable both to the server and the client.
