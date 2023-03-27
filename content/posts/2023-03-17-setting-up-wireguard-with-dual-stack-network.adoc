@@ -112,7 +112,24 @@ Run `wg` to ensure it actually works:
 It should print the interface name, server's public key and the port it listens on.
 Also, it prints out peers. It does not display much until the client is actually connected.
 
-.
+== Setup firewalld
+
+.Create zone `vpn` and allow SSH traffic through the Wireguard interface
+[,shell]
+----
+# firewall-cmd --permanent --new-zone=vpn
+# firewall-cmd --permanent --zone=vpn --change-interface=wg0
+# firewall-cmd --permanent --zone=vpn --add-service=ssh
+# firewall-cmd --reload
+----
+
+.Enable masquerading
+[,shell]
+----
+# firewall-cmd --permanent --zone=public --add-masquerade
+# firewall-cmd --permanent --zone=vpn --add-masquerade
+# firewall-cmd --reload
+----
 
 == Client configuration
 
