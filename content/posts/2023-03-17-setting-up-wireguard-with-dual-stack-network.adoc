@@ -143,8 +143,8 @@ permissions as we did on the server.
 ----
 [Interface]
 PrivateKey = CONTENTS_OF_CLIENT_PRI
-Address = fdb0:6828:4f98:4836::2/128
-Address = 172.16.1.2/32
+Address = fd22:fb91:6598:e512::2/64
+Address = 172.16.1.2/24
 
 # Use Cloudflare DNS servers, optional
 DNS = 2606:4700:4700::1111
@@ -176,9 +176,9 @@ And as we know, it does not keep the session, unlike TCP does.
 .Check your connection:
 [,shell]
 ----
-$ wg
+# wg
 
-$ ping -c 1 fdb0:6828:4f98::1
+$ ping -c 1 fd22:fb91:6598:e512::1
 $ ping -c 1 172.16.1.1
 ----
 
